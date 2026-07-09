@@ -154,6 +154,10 @@
     border-bottom:1px solid var(--line);
   }
   .category-bar{
+    display:flex; gap:16px; flex-wrap:wrap;
+    justify-content:space-between; align-items:center;
+  }
+  .category-bar-pills{
     display:flex; gap:12px; flex-wrap:wrap;
   }
   .cat-pill{
@@ -166,6 +170,23 @@
   .cat-pill:hover{background:var(--forest); color:var(--paper);}
   .cat-pill.active{background:var(--pop); border-color:var(--pop); color:var(--ink);}
   .cat-pill[data-cat="PH"]{border-color:#75AADB;}
+
+  .sort-bar{
+    display:flex; align-items:center; gap:10px;
+  }
+  .sort-bar label{
+    font-size:0.75rem; font-weight:600; color:var(--forest);
+    text-transform:uppercase; letter-spacing:0.06em;
+  }
+  .sort-select{
+    padding:9px 18px; border-radius:20px;
+    border:1px solid var(--forest);
+    background:var(--paper); color:var(--forest);
+    font-size:0.8rem; font-weight:600; cursor:pointer;
+    font-family:'Inter', sans-serif;
+  }
+  .sort-select:hover{background:var(--forest); color:var(--paper);}
+  .sort-select:focus{outline:none;}
 
   /* flag-colored category label (MUCHACHOS) */
   .flag-text{font-style:italic;}
@@ -623,11 +644,20 @@
 
   <div class="category-bar-strip">
     <div class="category-bar">
-      <button type="button" class="cat-pill active" data-cat="ALL" onclick="arcShowAll()">Todo</button>
-      <button type="button" class="cat-pill flag-text" data-cat="PH" onclick="arcFilterCategory('PH')"><span class="celeste">MU</span><span class="blanco">CH</span><span class="amarillo">A</span><span class="blanco">CH</span><span class="celeste">OS</span></button>
-      <button type="button" class="cat-pill" data-cat="J" onclick="arcFilterCategory('J')">Juegos</button>
-      <button type="button" class="cat-pill" data-cat="M" onclick="arcFilterCategory('M')">Música</button>
-      <button type="button" class="cat-pill" data-cat="F" onclick="arcFilterCategory('F')">Funcionalidad</button>
+      <div class="category-bar-pills">
+        <button type="button" class="cat-pill active" data-cat="ALL" onclick="arcShowAll()">Todo</button>
+        <button type="button" class="cat-pill flag-text" data-cat="PH" onclick="arcFilterCategory('PH')"><span class="celeste">MU</span><span class="blanco">CH</span><span class="amarillo">A</span><span class="blanco">CH</span><span class="celeste">OS</span></button>
+        <button type="button" class="cat-pill" data-cat="J" onclick="arcFilterCategory('J')">Juegos</button>
+        <button type="button" class="cat-pill" data-cat="M" onclick="arcFilterCategory('M')">Música</button>
+        <button type="button" class="cat-pill" data-cat="F" onclick="arcFilterCategory('F')">Funcionalidad</button>
+      </div>
+      <div class="sort-bar">
+        <label for="sortSelect" class="mono">Ordenar por</label>
+        <select id="sortSelect" class="sort-select" onchange="arcSortProducts(this.value)">
+          <option value="added-desc" selected>Más nuevas</option>
+          <option value="alpha-asc">Orden alfabético</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -1045,9 +1075,35 @@ function heroesBuild(){
   heroesRestart();
 }
 
+function arcSortProducts(mode){
+  var cards = Array.from(document.querySelectorAll('.grid .card'));
+  if (!cards.length) return;
+
+  if (mode === 'alpha-asc') {
+    cards.forEach(function(card){
+      var titleEl = card.querySelector('.card-title-row h3, h3');
+      card.dataset.sortTitle = titleEl ? titleEl.textContent.trim() : '';
+    });
+    cards
+      .slice()
+      .sort(function(a, b){
+        return a.dataset.sortTitle.localeCompare(b.dataset.sortTitle, 'es', { sensitivity: 'base' });
+      })
+      .forEach(function(card, i){ card.style.order = i; });
+  } else {
+    // 'added-desc' (Más nuevas): el orden de aparición en el HTML es el orden en que
+    // se agregaron los productos (los más viejos primero), así que invertimos ese orden.
+    cards.forEach(function(card, i){
+      card.style.order = cards.length - 1 - i;
+    });
+  }
+}
+
 if (document.getElementById('heroesTrack')) {
   heroesBuild();
 }
+
+arcSortProducts(document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'added-desc');
 
 </script>
 </body>
