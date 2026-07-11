@@ -616,6 +616,161 @@
     border:1px solid var(--line);
   }
 
+  /* la grilla original queda oculta: ahora funciona como "maestra" —
+     de ahí se clonan las cards para armar las filas por categoría. */
+  #catalogMaster{display:none;}
+
+  /* ---------- catalog: filas por categoría ---------- */
+  .catalog-groups{
+    display:flex;
+    flex-direction:column;
+    gap:52px;
+  }
+
+  .cat-group{
+    --group-accent: var(--carbon);
+  }
+  .cat-group[data-group="ALL"]{--group-accent: var(--carbon);}
+  .cat-group[data-group="PH"]{--group-accent: var(--azul-electrico);}
+  .cat-group[data-group="J"]{--group-accent: var(--verde);}
+  .cat-group[data-group="M"]{--group-accent: var(--lavanda);}
+  .cat-group[data-group="F"]{--group-accent: var(--salvia-nueva);}
+
+  .cat-group-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:16px;
+    padding-bottom:10px;
+    border-bottom:2px solid var(--group-accent);
+  }
+  .cat-group-head h3{
+    font-size:1.25rem;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .cat-group-head h3::before{
+    content:"";
+    width:9px; height:9px;
+    border-radius:50%;
+    background:var(--group-accent);
+    flex-shrink:0;
+  }
+  .cat-group-count{
+    font-size:0.7rem;
+    color:var(--forest-2);
+    opacity:0.75;
+    white-space:nowrap;
+  }
+
+  /* Las flechas ahora viven al costado del carril, como hermanos en flex,
+     en vez de flotar superpuestas sobre las cards. */
+  .cat-group-body{
+    display:flex;
+    align-items:stretch;
+    gap:10px;
+  }
+
+  .cat-group-scroll{
+    flex:1 1 auto;
+    min-width:0;
+    overflow-x:auto;
+    /* overflow-y queda en "visible": al convivir con overflow-x:auto el
+       navegador lo trata como "auto" igual, pero así nunca recorta de
+       forma silenciosa una card abierta si su contenido es más alto de
+       lo previsto (queda, en el peor caso, un pequeño scroll vertical). */
+    overflow-y:visible;
+    padding:0 0 6px;
+    -webkit-overflow-scrolling:touch;
+    /* la navegación ahora es con flechas: se oculta la barra nativa */
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+  }
+  .cat-group-scroll::-webkit-scrollbar{display:none;}
+
+  /* Botones sólidos por fuera del carril, con la altura total de las
+     cards de la categoría (align-items:stretch del padre) y la flecha
+     blanca centrada dentro de cada uno. */
+  .cat-arrow{
+    flex:0 0 42px;
+    width:42px;
+    display:flex; align-items:center; justify-content:center;
+    border:none; cursor:pointer;
+    background:var(--sage);
+    color:var(--forest-2);
+    border-radius:6px;
+    transition:background .2s ease, opacity .25s ease, flex-basis .25s ease, width .25s ease;
+  }
+  .cat-arrow:hover{background:var(--pop);}
+  .cat-arrow svg{width:16px; height:24px; display:block;}
+  .cat-arrow.is-hidden{
+    flex-basis:0;
+    width:0;
+    opacity:0;
+    pointer-events:none;
+    overflow:hidden;
+  }
+
+  .cat-group-track{
+    display:grid;
+    /* minmax con piso fijo: la segunda fila siempre reserva su espacio
+       para que la card de arriba tenga dónde expandirse sin recortarse.
+       Las categorías con un solo producto (.single-row) no usan esta
+       fila reservada, para no gastar altura de más. */
+    grid-template-rows:repeat(2, minmax(330px, auto));
+    grid-auto-flow:column;
+    grid-auto-columns:270px;
+    gap:2px;
+    width:max-content;
+    background:var(--line);
+    border:1px solid var(--line);
+  }
+  .cat-group-track .card{width:270px;}
+
+  /* categorías con pocos productos, que no alcanzan a llenar 2 filas
+     paralelas: una sola fila de alto, sin la reserva de la segunda. */
+  .cat-group.single-row .cat-group-track{
+    grid-template-rows:minmax(0, auto);
+  }
+  /* Con un solo producto no hace falta scroll horizontal, así que el
+     contenedor puede quedar con overflow visible del todo. Esto es
+     necesario: overflow-x:auto obliga al navegador a tratar
+     overflow-y como "auto" también (no puede ser "visible" si el otro
+     eje no lo es), y eso recortaba el panel expandido de la card
+     contra el borde inferior del contenedor, en vez de dejarlo
+     superponerse libremente sobre lo que hay debajo. */
+  .cat-group.single-row .cat-group-scroll{
+    overflow:visible;
+  }
+
+  /* Con grid-auto-flow:column, las cards de índice par caen siempre en la
+     fila de abajo: para que su panel de detalles no se salga por debajo
+     del carril, se abre hacia arriba (sobre la card de la fila 1).
+     No aplica en .single-row, donde no hay una fila de abajo real. */
+  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even){transform-origin:bottom center;}
+  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even) .card-expand{
+    top:auto;
+    bottom:100%;
+    border-radius:6px 6px 0 0;
+    border-top:1px solid var(--line);
+    border-bottom:none;
+  }
+  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even):hover .card-expand,
+  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even).is-open .card-expand{
+    box-shadow:0 -22px 44px rgba(12,19,16,0.2);
+  }
+
+  @media(max-width:640px){
+    .cat-group-track{grid-auto-columns:230px;}
+    .cat-group-track .card{width:230px;}
+    .cat-group:not(.single-row) .cat-group-track{grid-template-rows:repeat(2, minmax(290px, auto));}
+    .cat-group-body{gap:6px;}
+    .cat-arrow{flex-basis:32px; width:32px;}
+    .cat-arrow svg{width:13px; height:19px;}
+  }
+
   .card{
     background:var(--paper);
     padding:24px;
@@ -1021,7 +1176,9 @@
     </div>
   </div>
 
-  <div class="grid">
+  <div class="catalog-groups" id="catalogGroups"></div>
+
+  <div class="grid" id="catalogMaster">
 
     <!-- Messi | La Consagración | Panteón de Héroes -->
     <div class="card">
@@ -1364,18 +1521,26 @@ function arcCheckDescTruncation(){
 function arcToggleCardOpen(e, cardEl){
   if (e.target.closest('.carousel-arrow, .carousel-dots, .cta-mini, .name-expand-btn, .desc-expand-btn, .price-row')) return;
   const willOpen = !cardEl.classList.contains('is-open');
-  document.querySelectorAll('.grid .card.is-open').forEach(function(c){
+  document.querySelectorAll('.cat-group .card.is-open').forEach(function(c){
     if (c !== cardEl) c.classList.remove('is-open');
   });
   cardEl.classList.toggle('is-open', willOpen);
 }
 
-document.querySelectorAll('.grid .card').forEach(function(card){
-  card.addEventListener('click', function(e){ arcToggleCardOpen(e, card); });
-});
+/* Delegado: las cards se reconstruyen (clonadas) cada vez que se filtra,
+   ordena o se cambia de categoría, así que el listener vive en el
+   contenedor estable en vez de en cada card individual. */
+var arcCatalogGroupsEl = document.getElementById('catalogGroups');
+if (arcCatalogGroupsEl){
+  arcCatalogGroupsEl.addEventListener('click', function(e){
+    const cardEl = e.target.closest('.card');
+    if (!cardEl) return;
+    arcToggleCardOpen(e, cardEl);
+  });
+}
 document.addEventListener('click', function(e){
-  if (!e.target.closest('.grid .card')){
-    document.querySelectorAll('.grid .card.is-open').forEach(function(c){ c.classList.remove('is-open'); });
+  if (!e.target.closest('.card')){
+    document.querySelectorAll('.cat-group .card.is-open').forEach(function(c){ c.classList.remove('is-open'); });
   }
 });
 window.addEventListener('load', arcCheckDescTruncation);
@@ -1387,12 +1552,196 @@ function arcGetCode(card){
   return tag ? tag.textContent.trim() : '';
 }
 
-function arcFilterCategory(letter){
-  const prefix = '#' + letter;
-  document.querySelectorAll('.grid .card').forEach(function(card){
-    const code = arcGetCode(card);
-    card.style.display = code.indexOf(prefix) === 0 ? '' : 'none';
+/* Metadata de las categorías: define el orden en que se arman las filas.
+   "ALL" (Todos) siempre va primero cuando no hay filtro aplicado. */
+var ARC_CATS = [
+  { key:'ALL', label:'Todos' },
+  { key:'PH', flagHTML:'<span class="celeste">MU</span><span class="blanco">CH</span><span class="amarillo">A</span><span class="blanco">CH</span><span class="celeste">OS</span>' },
+  { key:'J', label:'Juegos' },
+  { key:'M', label:'Música' },
+  { key:'F', label:'Funcionalidad' }
+];
+
+var arcCurrentFilter = 'ALL';
+var arcCurrentSort = 'added-desc';
+
+function arcSortedMasterCards(){
+  var cards = Array.from(document.querySelectorAll('#catalogMaster .card'));
+  if (arcCurrentSort === 'alpha-asc'){
+    cards.sort(function(a, b){
+      var ta = a.querySelector('.card-title-row h3, h3');
+      var tb = b.querySelector('.card-title-row h3, h3');
+      ta = ta ? ta.textContent.trim() : '';
+      tb = tb ? tb.textContent.trim() : '';
+      return ta.localeCompare(tb, 'es', { sensitivity:'base' });
+    });
+  } else {
+    // 'added-desc' (Más nuevas): el orden en el HTML es el de agregado
+    // (más viejos primero), así que se invierte.
+    cards.reverse();
+  }
+  return cards;
+}
+
+function arcCardsForCategory(key, sortedCards){
+  if (key === 'ALL') return sortedCards;
+  var prefix = '#' + key;
+  return sortedCards.filter(function(card){
+    return arcGetCode(card).indexOf(prefix) === 0;
   });
+}
+
+/* Reconstruye las filas por categoría a partir de la grilla maestra oculta,
+   respetando el filtro y el orden vigentes. */
+function arcRenderCatalog(){
+  var groupsEl = document.getElementById('catalogGroups');
+  if (!groupsEl) return;
+
+  var sortedMaster = arcSortedMasterCards();
+  var catsToShow = arcCurrentFilter === 'ALL'
+    ? ARC_CATS
+    : ARC_CATS.filter(function(c){ return c.key === arcCurrentFilter; });
+
+  groupsEl.innerHTML = '';
+
+  catsToShow.forEach(function(cat){
+    var catCards = arcCardsForCategory(cat.key, sortedMaster);
+    if (!catCards.length) return;
+
+    var groupEl = document.createElement('div');
+    groupEl.className = 'cat-group';
+    groupEl.dataset.group = cat.key;
+    // Categorías con un solo producto no llegan a ocupar 2 filas paralelas:
+    // se muestran en una sola fila, sin gastar altura reservada de más.
+    if (catCards.length <= 1) groupEl.classList.add('single-row');
+
+    var head = document.createElement('div');
+    head.className = 'cat-group-head';
+
+    var h3 = document.createElement('h3');
+    if (cat.flagHTML){
+      h3.className = 'flag-text';
+      h3.innerHTML = cat.flagHTML;
+    } else {
+      h3.textContent = cat.label;
+    }
+
+    var count = document.createElement('span');
+    count.className = 'cat-group-count mono';
+    count.textContent = catCards.length + (catCards.length === 1 ? ' pieza' : ' piezas');
+
+    head.appendChild(h3);
+    head.appendChild(count);
+
+    var body = document.createElement('div');
+    body.className = 'cat-group-body';
+
+    var prevArrow = document.createElement('button');
+    prevArrow.type = 'button';
+    prevArrow.className = 'cat-arrow cat-arrow-prev';
+    prevArrow.setAttribute('aria-label', 'Ver anteriores');
+    prevArrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 20 8 12 18 4"></polyline></svg>';
+    prevArrow.addEventListener('click', function(){ arcScrollGroup(scroll, -1); });
+
+    var nextArrow = document.createElement('button');
+    nextArrow.type = 'button';
+    nextArrow.className = 'cat-arrow cat-arrow-next';
+    nextArrow.setAttribute('aria-label', 'Ver siguientes');
+    nextArrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 20 16 12 6 4"></polyline></svg>';
+    nextArrow.addEventListener('click', function(){ arcScrollGroup(scroll, 1); });
+
+    var scroll = document.createElement('div');
+    scroll.className = 'cat-group-scroll';
+    var track = document.createElement('div');
+    track.className = 'cat-group-track';
+    catCards.forEach(function(card){
+      track.appendChild(card.cloneNode(true));
+    });
+    scroll.appendChild(track);
+
+    body.appendChild(prevArrow);
+    body.appendChild(scroll);
+    body.appendChild(nextArrow);
+
+    scroll.addEventListener('scroll', function(){ arcUpdateGroupArrows(scroll); }, { passive:true });
+
+    groupEl.appendChild(head);
+    groupEl.appendChild(body);
+    groupsEl.appendChild(groupEl);
+
+    arcUpdateGroupArrows(scroll);
+  });
+
+  arcCheckDescTruncation();
+}
+
+/* Desplaza el carril de una categoría hacia el lado indicado (-1/1).
+   En vez de saltar ~85% del ancho visible de una sola vez (lo que se
+   sentía como un salto brusco), avanza el equivalente a poco más de
+   una card y lo hace con una animación propia, más lenta y con
+   aceleración/desaceleración suave (ease-in-out) que el scroll
+   nativo del navegador. */
+function arcScrollGroup(scrollEl, dir){
+  var track = scrollEl.querySelector('.cat-group-track');
+  var firstCard = track ? track.querySelector('.card') : null;
+  var step = firstCard ? firstCard.getBoundingClientRect().width + 2 : scrollEl.clientWidth * 0.85;
+  var amount = Math.min(step * 1.4, scrollEl.clientWidth * 0.85);
+  var maxScroll = scrollEl.scrollWidth - scrollEl.clientWidth;
+  var target = Math.max(0, Math.min(scrollEl.scrollLeft + dir * amount, maxScroll));
+  arcSmoothScrollTo(scrollEl, target, 480);
+}
+
+/* Animación de scroll horizontal propia (requestAnimationFrame + easeInOutQuad),
+   para un desplazamiento más gradual que el "smooth" nativo del navegador. */
+function arcSmoothScrollTo(el, target, duration){
+  if (el._arcScrollRAF) cancelAnimationFrame(el._arcScrollRAF);
+  var start = el.scrollLeft;
+  var change = target - start;
+  if (Math.abs(change) < 1) return;
+  var startTime = null;
+  function ease(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; }
+  function step(ts){
+    if (startTime === null) startTime = ts;
+    var elapsed = ts - startTime;
+    var progress = Math.min(elapsed / duration, 1);
+    el.scrollLeft = start + change * ease(progress);
+    if (progress < 1){
+      el._arcScrollRAF = requestAnimationFrame(step);
+    } else {
+      el._arcScrollRAF = null;
+    }
+  }
+  el._arcScrollRAF = requestAnimationFrame(step);
+}
+
+/* Oculta la flecha correspondiente cuando no hay más contenido hacia
+   ese lado, o ambas si la categoría entra completa sin necesidad de scroll. */
+function arcUpdateGroupArrows(scrollEl){
+  var body = scrollEl.closest('.cat-group-body');
+  if (!body) return;
+  var prev = body.querySelector('.cat-arrow-prev');
+  var next = body.querySelector('.cat-arrow-next');
+  if (!prev || !next) return;
+
+  var maxScroll = scrollEl.scrollWidth - scrollEl.clientWidth;
+  var hasOverflow = maxScroll > 4;
+
+  if (!hasOverflow){
+    prev.classList.add('is-hidden');
+    next.classList.add('is-hidden');
+    return;
+  }
+  prev.classList.toggle('is-hidden', scrollEl.scrollLeft <= 4);
+  next.classList.toggle('is-hidden', scrollEl.scrollLeft >= maxScroll - 4);
+}
+
+window.addEventListener('resize', function(){
+  document.querySelectorAll('.cat-group-scroll').forEach(arcUpdateGroupArrows);
+});
+
+function arcFilterCategory(letter){
+  arcCurrentFilter = letter;
+  arcRenderCatalog();
   document.querySelectorAll('.cat-pill').forEach(function(b){
     b.classList.toggle('active', b.dataset.cat === letter);
   });
@@ -1405,9 +1754,8 @@ function arcFilterCategory(letter){
 }
 
 function arcShowAll(){
-  document.querySelectorAll('.grid .card').forEach(function(card){
-    card.style.display = '';
-  });
+  arcCurrentFilter = 'ALL';
+  arcRenderCatalog();
   document.querySelectorAll('.cat-pill, .nav-cat-menu button').forEach(function(b){
     b.classList.toggle('active', b.dataset.cat === 'ALL');
   });
@@ -1578,34 +1926,16 @@ function heroesBuild(){
 }
 
 function arcSortProducts(mode){
-  var cards = Array.from(document.querySelectorAll('.grid .card'));
-  if (!cards.length) return;
-
-  if (mode === 'alpha-asc') {
-    cards.forEach(function(card){
-      var titleEl = card.querySelector('.card-title-row h3, h3');
-      card.dataset.sortTitle = titleEl ? titleEl.textContent.trim() : '';
-    });
-    cards
-      .slice()
-      .sort(function(a, b){
-        return a.dataset.sortTitle.localeCompare(b.dataset.sortTitle, 'es', { sensitivity: 'base' });
-      })
-      .forEach(function(card, i){ card.style.order = i; });
-  } else {
-    // 'added-desc' (Más nuevas): el orden de aparición en el HTML es el orden en que
-    // se agregaron los productos (los más viejos primero), así que invertimos ese orden.
-    cards.forEach(function(card, i){
-      card.style.order = cards.length - 1 - i;
-    });
-  }
+  arcCurrentSort = mode;
+  arcRenderCatalog();
 }
 
 if (document.getElementById('heroesTrack')) {
   heroesBuild();
 }
 
-arcSortProducts(document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'added-desc');
+arcCurrentSort = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'added-desc';
+arcRenderCatalog();
 
 </script>
 </body>
