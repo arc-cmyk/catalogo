@@ -1283,30 +1283,16 @@
   }
   .name-expand-btn:hover span{opacity:0.7;}
   .card .desc{color:#3A423E; font-size:0.92rem; margin-bottom:10px;}
-  .card .desc.truncate-desc{
-    display:-webkit-box;
-    -webkit-line-clamp:4;
-    -webkit-box-orient:vertical;
-    overflow:hidden;
-    /* clave para que el recorte por líneas funcione dentro de un
-       contenedor flex (.card-expand-inner): sin esto, algunos
-       navegadores le dan al párrafo su alto "auto" completo (el de
-       todo el texto) antes de aplicarle el clamp, y termina
-       mostrándose entero pese al line-clamp. */
-    flex-shrink:0;
-    min-height:0;
-  }
-  .card .desc.truncate-desc.expanded{
-    display:block;
-    -webkit-line-clamp:unset;
-    overflow:visible;
-  }
+  /* El recorte de texto ya no se hace por CSS (line-clamp resultaba
+     poco confiable): el JS acorta el texto real a una cantidad de
+     caracteres y guarda el texto completo aparte, intercambiándolos
+     al abrir/cerrar. */
   .card .desc-note{
     display:block;
     color:var(--pop);
-    font-size:0.75rem;
+    font-size:0.7rem;
     font-style:italic;
-    margin-top:10px;
+    margin-bottom:8px;
   }
 
   .desc-expand-btn{
@@ -1326,8 +1312,19 @@
     border-radius:50%;
     background:var(--pop);
     display:inline-block;
+    transition:transform .35s cubic-bezier(.4,0,.2,1), opacity .3s ease, border-radius .3s ease;
   }
   .desc-expand-btn:hover span{opacity:0.7;}
+
+  /* Al expandir la descripción completa, los tres puntos se transforman
+     en un "-": los puntos laterales se deslizan hacia el centro y se
+     desvanecen, mientras el del medio se estira hasta formar la barra. */
+  .desc-expand-btn.is-open span:nth-child(1){transform:translateX(7px) scale(0.2); opacity:0;}
+  .desc-expand-btn.is-open span:nth-child(3){transform:translateX(-7px) scale(0.2); opacity:0;}
+  .desc-expand-btn.is-open span:nth-child(2){transform:scaleX(3.6); border-radius:2px;}
+  .desc-expand-btn.is-open:hover span:nth-child(1),
+  .desc-expand-btn.is-open:hover span:nth-child(3){opacity:0;}
+  .desc-expand-btn.is-open:hover span:nth-child(2){opacity:0.7;}
 
   .specs{
     display:grid;
@@ -1657,7 +1654,8 @@
       <span class="card-hint mono">Ver detalles ↓</span>
       <div class="card-expand">
         <div class="card-expand-inner">
-      <p class="desc truncate-desc">El amplificador que nunca deja sin tocar. Las púas desaparecen, se caen o terminan en cualquier cajón. Este soporte inspirado en un clásico amplificador Marshall las mantiene organizadas en un solo lugar, listas para cuando llegue la inspiración.<span class="desc-note">También vendemos púas :P</span></p>
+      <p class="desc-note">También vendemos púas :P</p>
+      <p class="desc truncate-desc">El amplificador que nunca deja sin tocar. Las púas desaparecen, se caen o terminan en cualquier cajón. Este soporte inspirado en un clásico amplificador Marshall las mantiene organizadas en un solo lugar, listas para cuando llegue la inspiración.</p>
             <button type="button" class="desc-expand-btn" aria-label="Ver descripción completa" onclick="arcToggleDesc(this)"><span></span><span></span><span></span></button>
       <div class="specs">
           <div><span class="k mono">Material</span><span class="v mono">PLA+</span></div>
@@ -1917,17 +1915,48 @@ function arcToggleName(btn){
 function arcToggleDesc(btn){
   const desc = btn.previousElementSibling;
   if (!desc || !desc.classList.contains('desc')) return;
-  desc.classList.toggle('expanded');
-  btn.setAttribute('aria-label', desc.classList.contains('expanded') ? 'Ver menos' : 'Ver descripción completa');
+  const fullText = desc.dataset.fullText || desc.textContent.trim();
+  const isExpanded = desc.classList.toggle('expanded');
+  desc.textContent = isExpanded ? fullText : arcTruncateText(fullText, ARC_DESC_TRUNCATE_LENGTH);
+  btn.classList.toggle('is-open', isExpanded);
+  btn.setAttribute('aria-label', isExpanded ? 'Ver menos' : 'Ver descripción completa');
+
+  /* La descripción cambió de alto (truncada <-> completa): si la card
+     está abierta, el panel flotante recalcula su alto para acompañar
+     el nuevo contenido exacto, sin scroll y sin sobrar espacio. */
+  const expandEl = btn.closest('.card-expand');
+  if (expandEl && arcOpenExpand.expandEl === expandEl){
+    arcUpdateExpandHeight(expandEl);
+  }
 }
 
-/* Muestra el botón de "puntos verdes" para expandir la descripción
-   sólo cuando el texto realmente está siendo recortado (3 líneas). */
+/* Acorta la descripción por cantidad de caracteres (no por líneas de
+   CSS, que resultaba poco confiable entre navegadores). Corta en el
+   último espacio antes del límite para no partir una palabra. */
+var ARC_DESC_TRUNCATE_LENGTH = 140;
+
+function arcTruncateText(text, maxLen){
+  if (text.length <= maxLen) return text;
+  var cut = text.slice(0, maxLen);
+  var lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > 20) cut = cut.slice(0, lastSpace);
+  return cut.replace(/[.,;:¡!¿?\s]+$/, '') + '…';
+}
+
+/* Guarda el texto completo de cada descripción (una sola vez) y
+   muestra la versión acortada, mostrando el botón de "puntos verdes"
+   sólo cuando de verdad hay texto oculto. */
 function arcCheckDescTruncation(){
   document.querySelectorAll('.card .desc.truncate-desc').forEach(function(desc){
     const btn = desc.nextElementSibling;
     if (!btn || !btn.classList.contains('desc-expand-btn')) return;
-    const isTruncated = desc.scrollHeight - desc.clientHeight > 2;
+    if (!desc.dataset.fullText){
+      desc.dataset.fullText = desc.textContent.trim();
+    }
+    const fullText = desc.dataset.fullText;
+    const shortText = arcTruncateText(fullText, ARC_DESC_TRUNCATE_LENGTH);
+    const isTruncated = shortText !== fullText;
+    desc.textContent = desc.classList.contains('expanded') ? fullText : shortText;
     btn.classList.toggle('visible', isTruncated);
   });
 }
@@ -1958,27 +1987,23 @@ var arcCardResizeObserver = (typeof ResizeObserver !== 'undefined') ? new Resize
   }
 }) : null;
 
-var ARC_PHI = 1.618; // proporción áurea
-
 function arcPositionExpand(cardEl, expandEl){
   var rect = cardEl.getBoundingClientRect();
   expandEl.style.position = 'absolute';
   expandEl.style.top = (rect.bottom + window.scrollY) + 'px';
   expandEl.style.left = (rect.left + window.scrollX) + 'px';
   expandEl.style.width = rect.width + 'px';
+}
 
-  /* Card + panel expandido deben leerse como un único rectángulo de
-     proporción áurea (alto total ≈ ancho × φ). Si el contenido del
-     panel es más chico que eso, se le da ese alto mínimo; el espacio
-     extra lo absorbe el price-row (margin-top:auto), nunca el hueco
-     entre el título y la descripción. Si el contenido ya es más alto
-     que la proporción áurea, se respeta su alto natural. */
-  var innerEl = expandEl.querySelector('.card-expand-inner');
-  if (innerEl){
-    var goldenTotalHeight = rect.width * ARC_PHI;
-    var minExpandHeight = Math.max(0, goldenTotalHeight - rect.height);
-    innerEl.style.minHeight = minExpandHeight + 'px';
-  }
+/* El panel no fuerza ningún alto artificial: siempre mide lo que sus
+   elementos visibles realmente necesitan (descripción truncada a 4
+   renglones, specs, precio y CTA). Se llama tanto al abrir la card
+   como cada vez que la descripción se expande/colapsa, para que el
+   panel crezca o se achique exactamente lo justo y nunca haga falta
+   scrollear para ver el contenido completo. */
+function arcUpdateExpandHeight(expandEl){
+  if (!expandEl) return;
+  expandEl.style.maxHeight = expandEl.scrollHeight + 'px';
 }
 
 function arcExpandCard(cardEl){
@@ -1995,6 +2020,7 @@ function arcExpandCard(cardEl){
   arcPositionExpand(cardEl, expandEl);
   arcExpandPortal.appendChild(expandEl);
   void expandEl.offsetHeight; // fuerza reflow: la transición arranca desde el estado colapsado
+  arcUpdateExpandHeight(expandEl);
   expandEl.classList.add('is-visible');
   arcOpenExpand = { cardEl: cardEl, expandEl: expandEl };
   if (arcCardResizeObserver) arcCardResizeObserver.observe(cardEl);
@@ -2006,14 +2032,14 @@ function arcCollapseCurrent(immediate){
   cardEl.classList.remove('is-open');
   if (arcCardResizeObserver) arcCardResizeObserver.unobserve(cardEl);
   expandEl.classList.remove('is-visible');
+  expandEl.style.maxHeight = '0px';
   var restore = function(){
     cardEl.appendChild(expandEl);
     expandEl.style.position = '';
     expandEl.style.top = '';
     expandEl.style.left = '';
     expandEl.style.width = '';
-    var innerEl = expandEl.querySelector('.card-expand-inner');
-    if (innerEl) innerEl.style.minHeight = '';
+    expandEl.style.maxHeight = '';
   };
   if (immediate) restore();
   else setTimeout(restore, 560); // espera la transición de colapso para evitar un salto visual
