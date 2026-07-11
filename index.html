@@ -953,11 +953,11 @@
 
   .cat-group-track{
     display:grid;
-    /* minmax con piso fijo: la segunda fila siempre reserva su espacio
-       para que la card de arriba tenga dónde expandirse sin recortarse.
-       Las categorías con un solo producto (.single-row) no usan esta
-       fila reservada, para no gastar altura de más. */
-    grid-template-rows:repeat(2, minmax(380px, auto));
+    /* las filas miden según el contenido real de las cards (antes había
+       un piso fijo de 380px que ya no cumplía ninguna función y dejaba
+       un espacio vacío entre filas una vez que las cards dejaron de
+       estirarse para llenarlo). */
+    grid-template-rows:repeat(2, auto);
     grid-auto-flow:column;
     grid-auto-columns:270px;
     gap:2px;
@@ -965,55 +965,12 @@
     background:var(--line);
     border:1px solid var(--line);
   }
-  .cat-group-track .card{width:270px;}
+  .cat-group-track .card{width:270px; align-self:start;}
 
   /* categorías con pocos productos, que no alcanzan a llenar 2 filas
-     paralelas: una sola fila de alto, sin la reserva de la segunda. */
+     paralelas: una sola fila de alto. */
   .cat-group.single-row .cat-group-track{
     grid-template-rows:minmax(0, auto);
-  }
-  /* Como no hay una segunda fila real que "preste" su alto para que la
-     card de arriba se expanda sin recortarse, se reserva ese espacio como
-     padding-bottom transparente en el contenedor con scroll (no en el
-     track, para no pintarlo con el color de línea). El overflow-x:auto
-     del contenedor recorta todo lo que exceda SU caja, así que agrandar
-     esa caja hacia abajo es lo que permite que el panel expandido se
-     superponga libremente en vez de cortarse.
-     Ese espacio ahora se reserva SOLO mientras hay una card abierta o en
-     hover dentro del grupo (vía :has), animado con transition: así no
-     queda hueco vacío permanente cuando ninguna card está expandida, y
-     el alto se ajusta solo si la categoría deja de ser single-row al
-     sumar más productos (la clase la controla el JS del catálogo). */
-  .cat-group.single-row .cat-group-scroll{
-    padding-bottom:6px;
-    transition:padding-bottom .5s cubic-bezier(.16,1,.3,1);
-  }
-  .cat-group.single-row .cat-group-scroll:has(.card:hover),
-  .cat-group.single-row .cat-group-scroll:has(.card.is-open){
-    padding-bottom:320px;
-  }
-  @media(max-width:640px){
-    .cat-group.single-row .cat-group-scroll:has(.card:hover),
-    .cat-group.single-row .cat-group-scroll:has(.card.is-open){
-      padding-bottom:380px;
-    }
-  }
-
-  /* Con grid-auto-flow:column, las cards de índice par caen siempre en la
-     fila de abajo: para que su panel de detalles no se salga por debajo
-     del carril, se abre hacia arriba (sobre la card de la fila 1).
-     No aplica en .single-row, donde no hay una fila de abajo real. */
-  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even){transform-origin:bottom center;}
-  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even) .card-expand{
-    top:auto;
-    bottom:100%;
-    border-radius:6px 6px 0 0;
-    border-top:1px solid var(--line);
-    border-bottom:none;
-  }
-  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even):hover .card-expand,
-  .cat-group:not(.single-row) .cat-group-track .card:nth-child(even).is-open .card-expand{
-    box-shadow:0 -24px 48px rgba(12,19,16,0.22), 0 -6px 16px rgba(12,19,16,0.12);
   }
 
   @media(max-width:640px){
@@ -1031,44 +988,56 @@
     max-width:100%;
     position:relative;
     z-index:1;
-    transform-origin:top center;
-    transition:background .3s ease, transform .55s cubic-bezier(.16,1,.3,1), box-shadow .55s cubic-bezier(.16,1,.3,1), z-index 0s;
+    border-radius:8px;
+    transition:background .3s ease, border-radius .3s ease, box-shadow .3s ease, z-index 0s;
   }
   .card:hover,
   .card.is-open{
     background:#EFEDE4;
-    transform:scale(1.035);
+    border-radius:8px 8px 0 0;
     z-index:30;
     box-shadow:0 20px 46px rgba(12,19,16,0.22), 0 4px 12px rgba(12,19,16,0.1);
   }
 
   /* panel que se revela al expandir la card: descripción, specs y CTA.
-     Se ubica justo debajo del contenido siempre visible (imagen + título)
-     y crece hacia abajo sin empujar el resto de la grilla. */
+     Vive normalmente adentro de la card (posición de reposo, invisible),
+     pero al abrirse el JS lo despega y lo mueve a un overlay flotante
+     fuera de cualquier contenedor con scroll (ver "Card expand: overlay
+     flotante" en el script), con su posición en pantalla calculada en
+     tiempo real. Así se superpone libremente a cualquier elemento de
+     alrededor, sin recortarse y sin empujar el contenido de abajo.
+     Comparte fondo, ancho y radio con la card para que, al quedar
+     pegado justo debajo, se vea como un único rectángulo continuo
+     (sin borde propio que lo delate como una pieza aparte). */
   .card-expand{
     position:absolute;
     top:100%; left:0; right:0;
     background:#EFEDE4;
-    border:1px solid var(--line);
-    border-top:none;
-    border-radius:0 0 6px 6px;
+    border-radius:0 0 8px 8px;
     max-height:0;
     opacity:0;
     overflow:hidden;
     pointer-events:none;
     transition:max-height .55s cubic-bezier(.16,1,.3,1), opacity .35s ease, box-shadow .55s cubic-bezier(.16,1,.3,1);
   }
-  .card:hover .card-expand,
-  .card.is-open .card-expand{
+  .card-expand.is-visible{
     max-height:900px;
     opacity:1;
     pointer-events:auto;
-    box-shadow:0 24px 48px rgba(12,19,16,0.22), 0 6px 16px rgba(12,19,16,0.12);
+    box-shadow:0 20px 46px rgba(12,19,16,0.22), 0 4px 12px rgba(12,19,16,0.1);
     transition:max-height .55s cubic-bezier(.16,1,.3,1), opacity .4s ease .08s, box-shadow .55s cubic-bezier(.16,1,.3,1);
   }
   .card-expand-inner{
-    padding:14px 24px 26px;
+    padding:2px 24px 26px;
+    display:flex;
+    flex-direction:column;
+    min-height:inherit;
   }
+  /* si el panel tiene más alto asignado (para lograr la proporción
+     áurea junto con la card), el espacio extra se empuja hacia abajo,
+     delante del precio — nunca entre la descripción y el título. */
+  .card-expand-inner .price-row{margin-top:auto;}
+
 
   /* pequeña pista visual de que la card se puede abrir */
   .card-hint{
@@ -1079,10 +1048,13 @@
     opacity:0.7;
     letter-spacing:0.05em;
     text-transform:uppercase;
-    transition:opacity .2s ease;
+    max-height:20px;
+    margin-top:4px;
+    overflow:hidden;
+    transition:opacity .2s ease, max-height .2s ease, margin .2s ease;
   }
   .card:hover .card-hint,
-  .card.is-open .card-hint{opacity:0;}
+  .card.is-open .card-hint{opacity:0; max-height:0; margin-top:0;}
   @media(hover:none){
     .card-hint{opacity:0.85;}
   }
@@ -1792,15 +1764,96 @@ function arcCheckDescTruncation(){
   });
 }
 
+/* ---------- Card expand: overlay flotante (portal) ----------
+   El panel de detalle (.card-expand) se despega de la card y se mueve a
+   un contenedor único al final del <body>, con su posición en pantalla
+   calculada vía getBoundingClientRect(). Al vivir fuera de cualquier
+   contenedor con scroll horizontal, puede superponerse libremente a
+   cualquier elemento de alrededor sin recortarse y sin empujar el
+   contenido de abajo (no reserva espacio en el layout). Se usa tanto
+   para el hover en escritorio como para el tap en táctil. */
+var arcExpandPortal = document.createElement('div');
+arcExpandPortal.id = 'arcExpandPortal';
+arcExpandPortal.style.cssText = 'position:absolute; top:0; left:0; width:0; height:0; overflow:visible; z-index:9999;';
+document.body.appendChild(arcExpandPortal);
+
+var arcOpenExpand = { cardEl:null, expandEl:null };
+var arcCloseTimer = null;
+
+var ARC_PHI = 1.618; // proporción áurea
+
+function arcPositionExpand(cardEl, expandEl){
+  var rect = cardEl.getBoundingClientRect();
+  expandEl.style.position = 'absolute';
+  expandEl.style.top = (rect.bottom + window.scrollY) + 'px';
+  expandEl.style.left = (rect.left + window.scrollX) + 'px';
+  expandEl.style.width = rect.width + 'px';
+
+  /* Card + panel expandido deben leerse como un único rectángulo de
+     proporción áurea (alto total ≈ ancho × φ). Si el contenido del
+     panel es más chico que eso, se le da ese alto mínimo; el espacio
+     extra lo absorbe el price-row (margin-top:auto), nunca el hueco
+     entre el título y la descripción. Si el contenido ya es más alto
+     que la proporción áurea, se respeta su alto natural. */
+  var innerEl = expandEl.querySelector('.card-expand-inner');
+  if (innerEl){
+    var goldenTotalHeight = rect.width * ARC_PHI;
+    var minExpandHeight = Math.max(0, goldenTotalHeight - rect.height);
+    innerEl.style.minHeight = minExpandHeight + 'px';
+  }
+}
+
+function arcExpandCard(cardEl){
+  if (!cardEl || arcOpenExpand.cardEl === cardEl) return;
+  var expandEl = cardEl.querySelector('.card-expand');
+  if (!expandEl) return;
+  if (arcOpenExpand.cardEl) arcCollapseCurrent(true);
+
+  arcPositionExpand(cardEl, expandEl);
+  arcExpandPortal.appendChild(expandEl);
+  void expandEl.offsetHeight; // fuerza reflow: la transición arranca desde el estado colapsado
+  expandEl.classList.add('is-visible');
+  arcOpenExpand = { cardEl: cardEl, expandEl: expandEl };
+}
+
+function arcCollapseCurrent(immediate){
+  var cardEl = arcOpenExpand.cardEl, expandEl = arcOpenExpand.expandEl;
+  if (!cardEl || !expandEl) return;
+  expandEl.classList.remove('is-visible');
+  var restore = function(){
+    cardEl.appendChild(expandEl);
+    expandEl.style.position = '';
+    expandEl.style.top = '';
+    expandEl.style.left = '';
+    expandEl.style.width = '';
+    var innerEl = expandEl.querySelector('.card-expand-inner');
+    if (innerEl) innerEl.style.minHeight = '';
+  };
+  if (immediate) restore();
+  else setTimeout(restore, 560); // espera la transición de colapso para evitar un salto visual
+  arcOpenExpand = { cardEl:null, expandEl:null };
+}
+
+function arcScheduleClose(){
+  clearTimeout(arcCloseTimer);
+  arcCloseTimer = setTimeout(function(){ arcCollapseCurrent(false); }, 140);
+}
+
 /* En pantallas táctiles (sin hover real) permite abrir/cerrar la card
    tocando la imagen o el título, sin interferir con los botones internos. */
 function arcToggleCardOpen(e, cardEl){
   if (e.target.closest('.carousel-arrow, .carousel-dots, .cta-mini, .name-expand-btn, .desc-expand-btn, .price-row')) return;
-  const willOpen = !cardEl.classList.contains('is-open');
+  const willOpen = arcOpenExpand.cardEl !== cardEl;
   document.querySelectorAll('.cat-group .card.is-open').forEach(function(c){
     if (c !== cardEl) c.classList.remove('is-open');
   });
-  cardEl.classList.toggle('is-open', willOpen);
+  if (willOpen){
+    cardEl.classList.add('is-open');
+    arcExpandCard(cardEl);
+  } else {
+    cardEl.classList.remove('is-open');
+    arcCollapseCurrent(false);
+  }
 }
 
 /* Delegado: las cards se reconstruyen (clonadas) cada vez que se filtra,
@@ -1813,10 +1866,50 @@ if (arcCatalogGroupsEl){
     if (!cardEl) return;
     arcToggleCardOpen(e, cardEl);
   });
+
+  /* Hover en escritorio: abre/cierra el overlay flotante. */
+  arcCatalogGroupsEl.addEventListener('mouseover', function(e){
+    if (window.matchMedia('(hover: none)').matches) return;
+    const cardEl = e.target.closest('.card');
+    if (!cardEl) return;
+    clearTimeout(arcCloseTimer);
+    arcExpandCard(cardEl);
+  });
+  arcCatalogGroupsEl.addEventListener('mouseout', function(e){
+    if (window.matchMedia('(hover: none)').matches) return;
+    const cardEl = e.target.closest('.card');
+    if (!cardEl) return;
+    const to = e.relatedTarget;
+    if (to && (cardEl.contains(to) || arcExpandPortal.contains(to))) return;
+    arcScheduleClose();
+  });
 }
+
+/* El panel flotante vive fuera de #catalogGroups: necesita su propio
+   manejo de hover para no cerrarse mientras el mouse está sobre él
+   (por ejemplo, al leer la descripción o tocar el botón de comprar). */
+arcExpandPortal.addEventListener('mouseover', function(){
+  clearTimeout(arcCloseTimer);
+});
+arcExpandPortal.addEventListener('mouseout', function(e){
+  const to = e.relatedTarget;
+  if (to && (arcExpandPortal.contains(to) || (arcOpenExpand.cardEl && arcOpenExpand.cardEl.contains(to)))) return;
+  arcScheduleClose();
+});
+
+/* Si la ventana hace scroll o cambia de tamaño mientras hay una card
+   abierta, se reposiciona para que no quede desalineada de su card. */
+window.addEventListener('scroll', function(){
+  if (arcOpenExpand.cardEl) arcPositionExpand(arcOpenExpand.cardEl, arcOpenExpand.expandEl);
+}, { passive:true });
+window.addEventListener('resize', function(){
+  if (arcOpenExpand.cardEl) arcPositionExpand(arcOpenExpand.cardEl, arcOpenExpand.expandEl);
+});
+
 document.addEventListener('click', function(e){
-  if (!e.target.closest('.card')){
+  if (!e.target.closest('.card') && !e.target.closest('#arcExpandPortal')){
     document.querySelectorAll('.cat-group .card.is-open').forEach(function(c){ c.classList.remove('is-open'); });
+    arcCollapseCurrent(false);
   }
 });
 window.addEventListener('load', arcCheckDescTruncation);
@@ -1872,6 +1965,15 @@ function arcCardsForCategory(key, sortedCards){
 function arcRenderCatalog(){
   var groupsEl = document.getElementById('catalogGroups');
   if (!groupsEl) return;
+
+  // Las cards se van a destruir y reconstruir: si había un panel flotante
+  // abierto, hay que soltarlo ya (sin animación) para no dejarlo huérfano
+  // en el portal, ni conservar una referencia a un cardEl que ya no existe.
+  if (typeof arcOpenExpand !== 'undefined' && arcOpenExpand.cardEl){
+    arcOpenExpand.expandEl.classList.remove('is-visible');
+    arcOpenExpand = { cardEl:null, expandEl:null };
+  }
+  if (typeof arcExpandPortal !== 'undefined') arcExpandPortal.innerHTML = '';
 
   var sortedMaster = arcSortedMasterCards();
   var catsToShow = arcCurrentFilter === 'ALL'
