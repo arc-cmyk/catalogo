@@ -373,29 +373,31 @@
   .hero{
     position:relative;
     padding:11vh 6vw 10vh;
+    /* fallback por si WebGL2 no está disponible o el fondo animado aún no cargó */
     background:
-      radial-gradient(circle at 90% 6%, rgba(171,214,21,0.18) 0%, rgba(171,214,21,0) 40%),
-      radial-gradient(circle at 4% 96%, rgba(197,181,255,0.14) 0%, rgba(197,181,255,0) 46%),
-      radial-gradient(circle at 55% 40%, rgba(76,141,255,0.08) 0%, rgba(76,141,255,0) 55%),
+      radial-gradient(circle at 90% 6%, rgba(171,214,21,0.18) 0%, rgba(171,214,21,0) 45%),
       linear-gradient(160deg, var(--carbon) 0%, #17191b 55%, var(--carbon) 100%);
     color:var(--piedra);
     overflow:hidden;
   }
-  .hero::before{
-    content:"";
-    position:absolute; inset:0;
-    background-image:
-      repeating-linear-gradient(to bottom, rgba(217,213,203,0.045) 0px, rgba(217,213,203,0.045) 1px, transparent 1px, transparent 14px),
-      repeating-linear-gradient(to right, rgba(217,213,203,0.025) 0px, rgba(217,213,203,0.025) 1px, transparent 1px, transparent 34px);
+
+  /* ---------- fondo animado (Grainient / WebGL) ---------- */
+  .hero-grainient{
+    position:absolute;
+    inset:0;
+    z-index:0;
     pointer-events:none;
   }
-  .hero::after{
-    content:"";
-    position:absolute; left:-130px; top:-130px;
-    width:360px; height:360px;
-    border-radius:50%;
-    background:radial-gradient(circle, rgba(76,141,255,0.16) 0%, rgba(76,141,255,0) 70%);
-    pointer-events:none;
+  .grainient-container{
+    position:relative;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+  }
+  .grainient-container canvas{
+    width:100%;
+    height:100%;
+    display:block;
   }
 
   @keyframes heroFadeUp{
@@ -408,7 +410,25 @@
   }
 
   .hero-content{
+    position:relative;
+    z-index:2;
     animation:heroFadeUp .7s cubic-bezier(.16,1,.3,1) both;
+  }
+
+  /* panel oscuro semitransparente detrás del texto, para que se lea bien
+     sobre el fondo animado (independiente de .hero-content para no
+     "pintar" también el hueco reservado para la imagen de escritorio) */
+  .hero-text-panel{
+    display:block;
+    width:fit-content;
+    max-width:100%;
+    background:rgba(12,19,16,0.5);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    border:1px solid rgba(247,245,239,0.06);
+    border-radius:20px;
+    padding:34px 30px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.28);
   }
 
   .eyebrow{
@@ -958,7 +978,20 @@
   .heroes-cta:hover{color:var(--forest-2);}
 
   /* ---------- catalog ---------- */
-  .catalog{padding:70px 6vw 100px;}
+  .catalog{
+    padding:70px 6vw 100px;
+    position:relative;
+    /* textura tipo serigrafía/halftone (skate deck, arte urbano) +
+       manchas de color muy suaves con la paleta de marca, en vez de
+       las líneas horizontales del motivo "layers" (que pertenecen a
+       otra sección y no combinaban acá). */
+    background:
+      radial-gradient(circle at 12% 18%, rgba(171,214,21,0.07) 0%, transparent 42%),
+      radial-gradient(circle at 88% 8%, rgba(76,141,255,0.05) 0%, transparent 38%),
+      radial-gradient(circle at 60% 96%, rgba(197,181,255,0.06) 0%, transparent 40%),
+      radial-gradient(rgba(29,31,33,0.05) 1px, transparent 1.4px) 0 0/16px 16px,
+      var(--paper);
+  }
   .catalog-head{
     display:flex; align-items:baseline; justify-content:space-between;
     margin-bottom:44px;
@@ -1435,7 +1468,9 @@
 </header>
 
 <section class="hero">
+  <div class="hero-grainient" id="heroGrainient" aria-hidden="true"></div>
   <div class="hero-content">
+   <div class="hero-text-panel">
     <span class="eyebrow">Estudio de impresión 3D &amp; diseño</span>
     <h1>De la idea<br>al <span class="accent">objeto.</span></h1>
     <p>Piezas impresas a medida, accesorios funcionales para el hogar y desarrollos por encargo. En ARC transformamos conceptos en piezas únicas, pensadas para organizar, decorar y acompañar tu día a día.</p>
@@ -1473,6 +1508,7 @@
         <div class="lab">Elegimos calidad y conciencia</div>
       </div>
     </div>
+   </div>
   </div>
 
   <div class="hero-media" role="link" tabindex="0" aria-label="Ver catálogo — nuevos drops" onclick="arcScrollToCatalog(event);" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();arcScrollToCatalog(event);}">
@@ -1523,7 +1559,7 @@
   </div>
 </section>
 
-<section class="catalog layers" id="catalogo">
+<section class="catalog" id="catalogo">
   <div class="catalog-head">
     <h2>Catálogo</h2>
     <span class="count mono">07 piezas en exhibición</span>
@@ -2535,6 +2571,291 @@ if (document.getElementById('heroesTrack')) {
 arcCurrentSort = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'added-desc';
 arcRenderCatalog();
 
+</script>
+
+<script>
+/* ---------- Fondo animado del hero: "Grainient" (WebGL2, gradiente + grano) ----------
+   Versión en JavaScript + WebGL2 puro (sin librerías externas ni type="module"),
+   para que funcione también al abrir el archivo directo desde el disco (file://),
+   donde los navegadores bloquean los imports de módulos ES por CORS. */
+(function(){
+  const container = document.getElementById('heroGrainient');
+  if (!container) return;
+
+  const hexToRgb = hex => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) return [1, 1, 1];
+    return [parseInt(result[1], 16) / 255, parseInt(result[2], 16) / 255, parseInt(result[3], 16) / 255];
+  };
+
+  const vertexSrc = '#version 300 es\n' +
+    'in vec2 position;\n' +
+    'void main() {\n' +
+    '  gl_Position = vec4(position, 0.0, 1.0);\n' +
+    '}\n';
+
+  const fragmentSrc = '#version 300 es\n' +
+    'precision highp float;\n' +
+    'uniform vec2 iResolution;\n' +
+    'uniform float iTime;\n' +
+    'uniform float uTimeSpeed;\n' +
+    'uniform float uColorBalance;\n' +
+    'uniform float uWarpStrength;\n' +
+    'uniform float uWarpFrequency;\n' +
+    'uniform float uWarpSpeed;\n' +
+    'uniform float uWarpAmplitude;\n' +
+    'uniform float uBlendAngle;\n' +
+    'uniform float uBlendSoftness;\n' +
+    'uniform float uRotationAmount;\n' +
+    'uniform float uNoiseScale;\n' +
+    'uniform float uGrainAmount;\n' +
+    'uniform float uGrainScale;\n' +
+    'uniform float uGrainAnimated;\n' +
+    'uniform float uContrast;\n' +
+    'uniform float uGamma;\n' +
+    'uniform float uSaturation;\n' +
+    'uniform vec2 uCenterOffset;\n' +
+    'uniform float uZoom;\n' +
+    'uniform vec3 uColor1;\n' +
+    'uniform vec3 uColor2;\n' +
+    'uniform vec3 uColor3;\n' +
+    'out vec4 fragColor;\n' +
+    '#define S(a,b,t) smoothstep(a,b,t)\n' +
+    'mat2 Rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}\n' +
+    'vec2 hash(vec2 p){p=vec2(dot(p,vec2(2127.1,81.17)),dot(p,vec2(1269.5,283.37)));return fract(sin(p)*43758.5453);}\n' +
+    'float noise(vec2 p){vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);float n=mix(mix(dot(-1.0+2.0*hash(i+vec2(0.0,0.0)),f-vec2(0.0,0.0)),dot(-1.0+2.0*hash(i+vec2(1.0,0.0)),f-vec2(1.0,0.0)),u.x),mix(dot(-1.0+2.0*hash(i+vec2(0.0,1.0)),f-vec2(0.0,1.0)),dot(-1.0+2.0*hash(i+vec2(1.0,1.0)),f-vec2(1.0,1.0)),u.x),u.y);return 0.5+0.5*n;}\n' +
+    'void mainImage(out vec4 o, vec2 C){\n' +
+    '  float t=iTime*uTimeSpeed;\n' +
+    '  vec2 uv=C/iResolution.xy;\n' +
+    '  float ratio=iResolution.x/iResolution.y;\n' +
+    '  vec2 tuv=uv-0.5+uCenterOffset;\n' +
+    '  tuv/=max(uZoom,0.001);\n' +
+    '\n' +
+    '  float degree=noise(vec2(t*0.1,tuv.x*tuv.y)*uNoiseScale);\n' +
+    '  tuv.y*=1.0/ratio;\n' +
+    '  tuv*=Rot(radians((degree-0.5)*uRotationAmount+180.0));\n' +
+    '  tuv.y*=ratio;\n' +
+    '\n' +
+    '  float frequency=uWarpFrequency;\n' +
+    '  float ws=max(uWarpStrength,0.001);\n' +
+    '  float amplitude=uWarpAmplitude/ws;\n' +
+    '  float warpTime=t*uWarpSpeed;\n' +
+    '  tuv.x+=sin(tuv.y*frequency+warpTime)/amplitude;\n' +
+    '  tuv.y+=sin(tuv.x*(frequency*1.5)+warpTime)/(amplitude*0.5);\n' +
+    '\n' +
+    '  vec3 colLav=uColor1;\n' +
+    '  vec3 colOrg=uColor2;\n' +
+    '  vec3 colDark=uColor3;\n' +
+    '  float b=uColorBalance;\n' +
+    '  float s=max(uBlendSoftness,0.0);\n' +
+    '  mat2 blendRot=Rot(radians(uBlendAngle));\n' +
+    '  float blendX=(tuv*blendRot).x;\n' +
+    '  float edge0=-0.3-b-s;\n' +
+    '  float edge1=0.2-b+s;\n' +
+    '  float v0=0.5-b+s;\n' +
+    '  float v1=-0.3-b-s;\n' +
+    '  vec3 layer1=mix(colDark,colOrg,S(edge0,edge1,blendX));\n' +
+    '  vec3 layer2=mix(colOrg,colLav,S(edge0,edge1,blendX));\n' +
+    '  vec3 col=mix(layer1,layer2,S(v0,v1,tuv.y));\n' +
+    '\n' +
+    '  vec2 grainUv=uv*max(uGrainScale,0.001);\n' +
+    '  if(uGrainAnimated>0.5){grainUv+=vec2(iTime*0.05);}\n' +
+    '  float grain=fract(sin(dot(grainUv,vec2(12.9898,78.233)))*43758.5453);\n' +
+    '  col+=(grain-0.5)*uGrainAmount;\n' +
+    '\n' +
+    '  col=(col-0.5)*uContrast+0.5;\n' +
+    '  float luma=dot(col,vec3(0.2126,0.7152,0.0722));\n' +
+    '  col=mix(vec3(luma),col,uSaturation);\n' +
+    '  col=pow(max(col,0.0),vec3(1.0/max(uGamma,0.001)));\n' +
+    '  col=clamp(col,0.0,1.0);\n' +
+    '\n' +
+    '  o=vec4(col,1.0);\n' +
+    '}\n' +
+    'void main(){\n' +
+    '  vec4 o=vec4(0.0);\n' +
+    '  mainImage(o,gl_FragCoord.xy);\n' +
+    '  fragColor=o;\n' +
+    '}\n';
+
+  // Valores del look elegido para el hero (verde ARC / carbón / salvia)
+  const cfg = {
+    color1: '#ABD615',
+    color2: '#1D1F21',
+    color3: '#B7C99C',
+    timeSpeed: 0.25,
+    colorBalance: 0,
+    warpStrength: 2.25,
+    warpFrequency: 10.8,
+    warpSpeed: 1.4,
+    warpAmplitude: 48,
+    blendAngle: 21,
+    blendSoftness: 0.07,
+    rotationAmount: 950,
+    noiseScale: 1.15,
+    grainAmount: 0.1,
+    grainScale: 2,
+    grainAnimated: false,
+    contrast: 1.5,
+    gamma: 1,
+    saturation: 0.75,
+    centerX: -0.03,
+    centerY: 0.02,
+    zoom: 0.9
+  };
+
+  const inner = document.createElement('div');
+  inner.className = 'grainient-container';
+  container.appendChild(inner);
+
+  const canvas = document.createElement('canvas');
+  inner.appendChild(canvas);
+
+  const gl = canvas.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: true });
+  if (!gl) return; // Sin WebGL2: queda el degradé CSS de respaldo del hero
+
+  function compileShader(type, source){
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+      console.error('Grainient shader error:', gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  const vShader = compileShader(gl.VERTEX_SHADER, vertexSrc);
+  const fShader = compileShader(gl.FRAGMENT_SHADER, fragmentSrc);
+  if (!vShader || !fShader) return;
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vShader);
+  gl.attachShader(program, fShader);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)){
+    console.error('Grainient program link error:', gl.getProgramInfoLog(program));
+    return;
+  }
+  gl.useProgram(program);
+
+  // Triángulo único que cubre toda la pantalla (evita costuras del quad)
+  const positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const positionLoc = gl.getAttribLocation(program, 'position');
+  gl.enableVertexAttribArray(positionLoc);
+  gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+  const uLoc = name => gl.getUniformLocation(program, name);
+  const locations = {
+    iTime: uLoc('iTime'),
+    iResolution: uLoc('iResolution'),
+    uTimeSpeed: uLoc('uTimeSpeed'),
+    uColorBalance: uLoc('uColorBalance'),
+    uWarpStrength: uLoc('uWarpStrength'),
+    uWarpFrequency: uLoc('uWarpFrequency'),
+    uWarpSpeed: uLoc('uWarpSpeed'),
+    uWarpAmplitude: uLoc('uWarpAmplitude'),
+    uBlendAngle: uLoc('uBlendAngle'),
+    uBlendSoftness: uLoc('uBlendSoftness'),
+    uRotationAmount: uLoc('uRotationAmount'),
+    uNoiseScale: uLoc('uNoiseScale'),
+    uGrainAmount: uLoc('uGrainAmount'),
+    uGrainScale: uLoc('uGrainScale'),
+    uGrainAnimated: uLoc('uGrainAnimated'),
+    uContrast: uLoc('uContrast'),
+    uGamma: uLoc('uGamma'),
+    uSaturation: uLoc('uSaturation'),
+    uCenterOffset: uLoc('uCenterOffset'),
+    uZoom: uLoc('uZoom'),
+    uColor1: uLoc('uColor1'),
+    uColor2: uLoc('uColor2'),
+    uColor3: uLoc('uColor3')
+  };
+
+  // Uniforms estáticos: se cargan una sola vez
+  gl.uniform1f(locations.uTimeSpeed, cfg.timeSpeed);
+  gl.uniform1f(locations.uColorBalance, cfg.colorBalance);
+  gl.uniform1f(locations.uWarpStrength, cfg.warpStrength);
+  gl.uniform1f(locations.uWarpFrequency, cfg.warpFrequency);
+  gl.uniform1f(locations.uWarpSpeed, cfg.warpSpeed);
+  gl.uniform1f(locations.uWarpAmplitude, cfg.warpAmplitude);
+  gl.uniform1f(locations.uBlendAngle, cfg.blendAngle);
+  gl.uniform1f(locations.uBlendSoftness, cfg.blendSoftness);
+  gl.uniform1f(locations.uRotationAmount, cfg.rotationAmount);
+  gl.uniform1f(locations.uNoiseScale, cfg.noiseScale);
+  gl.uniform1f(locations.uGrainAmount, cfg.grainAmount);
+  gl.uniform1f(locations.uGrainScale, cfg.grainScale);
+  gl.uniform1f(locations.uGrainAnimated, cfg.grainAnimated ? 1.0 : 0.0);
+  gl.uniform1f(locations.uContrast, cfg.contrast);
+  gl.uniform1f(locations.uGamma, cfg.gamma);
+  gl.uniform1f(locations.uSaturation, cfg.saturation);
+  gl.uniform2f(locations.uCenterOffset, cfg.centerX, cfg.centerY);
+  gl.uniform1f(locations.uZoom, cfg.zoom);
+  const c1 = hexToRgb(cfg.color1), c2 = hexToRgb(cfg.color2), c3 = hexToRgb(cfg.color3);
+  gl.uniform3f(locations.uColor1, c1[0], c1[1], c1[2]);
+  gl.uniform3f(locations.uColor2, c2[0], c2[1], c2[2]);
+  gl.uniform3f(locations.uColor3, c3[0], c3[1], c3[2]);
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  function render(){
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function setSize(){
+    const rect = inner.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width * dpr));
+    const h = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, w, h);
+    gl.uniform2f(locations.iResolution, w, h);
+    render();
+  }
+
+  const ro = new ResizeObserver(setSize);
+  ro.observe(inner);
+  setSize();
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let raf = 0;
+  let isVisible = true;
+  let isPageVisible = !document.hidden;
+  const t0 = performance.now();
+
+  function loop(t){
+    gl.uniform1f(locations.iTime, (t - t0) * 0.001);
+    render();
+    raf = requestAnimationFrame(loop);
+  }
+  function tryStart(){
+    if (!reduceMotion && isVisible && isPageVisible && raf === 0) raf = requestAnimationFrame(loop);
+  }
+  function tryStop(){
+    if (raf !== 0){ cancelAnimationFrame(raf); raf = 0; }
+  }
+
+  const io = new IntersectionObserver(
+    function(entries){
+      isVisible = entries[0].isIntersecting;
+      isVisible ? tryStart() : tryStop();
+    },
+    { threshold: 0 }
+  );
+  io.observe(inner);
+
+  document.addEventListener('visibilitychange', function(){
+    isPageVisible = !document.hidden;
+    isPageVisible ? tryStart() : tryStop();
+  });
+
+  tryStart();
+})();
 </script>
 </body>
 </html>
