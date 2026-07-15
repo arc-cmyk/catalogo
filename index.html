@@ -2252,11 +2252,18 @@ function arcCarousel(btn, dir){
 const ARC_WHATSAPP_NUMBER = '5493425263538';
 
 function arcOrder(btn){
-  const card = btn.closest('.card');
+  /* El panel .card-expand puede estar "desprendido" y viviendo en el
+     portal flotante (arcExpandPortal) al momento del click, así que
+     btn.closest('.card') no lo encuentra. En ese caso recurrimos a la
+     card actualmente abierta (arcOpenExpand.cardEl); si no, buscamos
+     normalmente por si el botón sigue dentro de la card. */
+  const card = (typeof arcOpenExpand !== 'undefined' && arcOpenExpand.expandEl && arcOpenExpand.expandEl.contains(btn))
+    ? arcOpenExpand.cardEl
+    : btn.closest('.card');
   if (!card) return;
   const titleEl = card.querySelector('.card-title-row h3, h3');
   const productName = titleEl ? titleEl.textContent.trim() : '';
-  const message = `Hola! Me interesa el producto *${productName}*`;
+  const message = `Hola! Estoy interesado en el producto *${productName}*`;
   const url = `https://wa.me/${ARC_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank');
 }
